@@ -1,0 +1,1753 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game MPI - Mengenal Huruf Hijaiyah</title>
+    
+    <!-- Menambahkan Ikon untuk Tab Browser -->
+    <link rel="icon" type="image/png" href="asset/icon.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Tambahan Pustaka untuk Fitur Download Sertifikat (html2canvas) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700;800&family=Fredoka+One&display=swap');
+        
+        body {
+            font-family: 'Baloo 2', cursive;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #0f172a; /* Fallback warna jika gambar lambat dimuat */
+            background-image: url('asset/bg.png'); /* Mengambil gambar dari folder asset */
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            overflow: hidden;
+        }
+        
+        h1, h2, h3, .brand-font {
+            font-family: 'Fredoka One', cursive;
+            letter-spacing: 1px;
+        }
+
+        .hijaiyah-char {
+            font-family: 'Traditional Arabic', 'Amiri', serif;
+            line-height: 1.2;
+        }
+
+        /* 3D Button Styles using Tailwind classes logic but defined here for cleaner HTML if needed, 
+           but we'll use inline Tailwind for maximum flexibility. */
+        .btn-pressable {
+            transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-pressable:active:not(:disabled) {
+            transform: translateY(4px);
+            border-bottom-width: 0px !important;
+            margin-top: 4px; /* Compensate for lost border to keep layout stable */
+        }
+
+        .screen {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            flex-direction: column;
+            animation: slideIn 0.4s ease-out;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Background Pattern */
+        .bg-polka {
+            background-color: rgba(224, 242, 254, 0.4);
+            background-image: radial-gradient(rgba(186, 230, 253, 0.6) 2px, transparent 2px);
+            background-size: 30px 30px;
+        }
+
+        /* Floating Animation */
+        .animate-float {
+            animation: float 3s ease-in-out infinite;
+        }
+        .animate-float-delayed {
+            animation: float 3.5s ease-in-out infinite 1s;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        /* Confetti for Winner Screen */
+        .confetti {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            z-index: 50;
+        }
+
+        /* --- GAME BALON STYLES --- */
+        .balloon {
+            position: absolute;
+            bottom: -150px;
+            width: 70px;
+            height: 90px;
+            border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: inset -10px -10px 20px rgba(0,0,0,0.15), 0 5px 10px rgba(0,0,0,0.1);
+            transition: transform 0.1s;
+            z-index: 10;
+        }
+        
+        @media (min-width: 640px) {
+            .balloon { width: 90px; height: 110px; }
+        }
+        
+        /* Tambahan ukuran balon ekstra besar untuk layar Laptop/Desktop */
+        @media (min-width: 1024px) {
+            .balloon { width: 120px; height: 150px; }
+            .balloon::after { height: 35px; bottom: -18px; border-width: 3px; }
+            .balloon::before { border-left-width: 8px; border-right-width: 8px; border-bottom-width: 10px; bottom: -8px;}
+        }
+
+        .balloon:active { transform: scale(0.9); }
+        
+        .balloon::after {
+            content: '';
+            position: absolute;
+            bottom: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 25px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 2px;
+        }
+        .balloon::before {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 8px solid currentColor; 
+            filter: brightness(0.8);
+        }
+        
+        @keyframes floatUp {
+            from { transform: translateY(0) translateX(0) rotate(0deg); }
+            to { transform: translateY(-120vh) translateX(var(--drift)) rotate(var(--spin)); }
+        }
+        
+        .pop-anim {
+            animation: pop 0.2s ease-out forwards;
+            pointer-events: none;
+        }
+        
+        @keyframes pop {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.8; }
+            100% { transform: scale(0); opacity: 0; }
+        }
+        
+        /* Animasi Ledakan Partikel Huruf Balon */
+        @keyframes particleExplode {
+            0% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+            100% { transform: translate(var(--tx), var(--ty)) scale(0) rotate(var(--rot)); opacity: 0; }
+        }
+        .balloon-particle {
+            position: fixed;
+            pointer-events: none;
+            animation: particleExplode 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+            z-index: 100;
+            font-family: 'Traditional Arabic', 'Amiri', serif;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+            line-height: 1;
+        }
+    </style>
+</head>
+<body class="text-slate-700" onclick="initAudioOnFirstInteraction()">
+
+    <!-- Audio Musik Latar Belakang -->
+    <audio id="bg-music" loop>
+        <source src="asset/latar.mp3" type="audio/mpeg">
+        Browser Anda tidak mendukung pemutaran audio.
+    </audio>
+
+    <!-- Tombol Kontrol Musik (ON / OFF) -->
+    <button id="music-toggle-btn" onclick="toggleMusic(event)" class="fixed top-4 right-4 z-50 bg-white/80 backdrop-blur px-4 h-12 flex items-center justify-center gap-2 rounded-full shadow-lg border-2 border-sky-200 text-sky-600 hover:bg-sky-100 transition-all cursor-pointer font-bold text-sm">
+        <span id="music-icon" class="text-xl">🎵</span>
+        <span id="music-text" class="hidden sm:inline">Musik: OFF</span>
+    </button>
+
+    <!-- Tombol Fullscreen -->
+    <button onclick="toggleFullScreen()" class="fixed top-4 left-4 z-50 bg-white/80 backdrop-blur w-12 h-12 flex items-center justify-center rounded-full shadow-lg border-2 border-sky-200 text-sky-600 hover:bg-sky-100 transition-all cursor-pointer">
+        <span id="fullscreen-icon" class="text-2xl">⛶</span>
+    </button>
+
+    <canvas id="bg-3d" class="fixed top-0 left-0 w-full h-full -z-10 pointer-events-none"></canvas>
+
+    <!-- Mengubah background menjadi transparan dengan efek blur (Glassmorphism) -->
+    <!-- Diperbesar drastis menjadi max-w-7xl (Lebar laptop penuh) agar tampil sangat lega dan interaktif -->
+    <div id="app" class="relative w-full h-[100dvh] sm:h-[95vh] sm:w-[96vw] max-w-7xl bg-white/30 backdrop-blur-lg sm:rounded-[2.5rem] shadow-2xl sm:border-[8px] border-white/50 overflow-hidden">
+        
+        <!-- ============================================== -->
+        <!-- SCREEN: WELCOME (ENTRY POINT BARU)             -->
+        <!-- ============================================== -->
+        <div id="screen-welcome" class="screen bg-white/20">
+            <!-- Decorative Elements -->
+            <div class="absolute top-10 left-4 md:left-20 w-12 h-12 md:w-24 md:h-24 bg-yellow-300 rounded-full animate-float opacity-80"></div>
+            <div class="absolute top-20 right-8 md:right-32 w-8 h-8 md:w-16 md:h-16 bg-pink-400 rounded-full animate-float-delayed opacity-80"></div>
+            <div class="absolute bottom-40 left-10 md:left-40 w-16 h-16 md:w-32 md:h-32 bg-blue-400 rounded-full animate-float opacity-60"></div>
+
+            <div class="flex-1 flex flex-col items-center justify-center p-6 z-10 mt-6">
+                
+                <!-- Logo Utama (icon.png) -->
+                <!-- onerror digunakan agar jika gambar belum ada di folder, logo tidak terlihat rusak/pecah -->
+                <img src="asset/icon.png" alt="Icon Game" class="w-32 h-32 md:w-56 md:h-56 object-contain drop-shadow-xl mb-4 animate-float" onerror="this.style.display='none'">
+
+                <!-- Title Header -->
+                <div class="text-center mb-10 md:mb-14 transform -rotate-2">
+                    <span class="bg-yellow-400 text-yellow-900 px-4 py-1 md:px-8 md:py-2 rounded-full font-bold text-sm md:text-2xl mb-2 inline-block border-2 border-yellow-500 shadow-sm brand-font">
+                        MAHIRA
+                    </span>
+                    <p class="text-xs md:text-lg text-slate-800 font-bold mb-2 uppercase bg-white/60 px-4 py-1 rounded-full shadow-sm backdrop-blur-sm border border-slate-200 mx-auto max-w-fit">
+                        (Media Adaptif Hijaiyah dan Makharijul Huruf)
+                    </p>
+                    <h1 class="text-4xl md:text-7xl text-sky-500 drop-shadow-[0_3px_0_rgba(2,132,199,1)] md:drop-shadow-[0_5px_0_rgba(2,132,199,1)] mt-2">MARI BELAJAR</h1>
+                    <h2 class="text-5xl md:text-8xl lg:text-[7rem] text-pink-500 drop-shadow-[0_4px_0_rgba(219,39,119,1)] md:drop-shadow-[0_8px_0_rgba(219,39,119,1)] leading-tight mt-1">HIJAIYAH</h2>
+                </div>
+                
+                <!-- Main Buttons -->
+                <div class="w-full max-w-md md:max-w-xl space-y-4 px-4 mb-8">
+                    <button onclick="navTo('screen-login')" class="btn-pressable w-full brand-font text-2xl md:text-4xl bg-green-400 hover:bg-green-300 text-white py-4 md:py-8 rounded-2xl md:rounded-3xl border-b-[6px] md:border-b-[10px] border-green-600 shadow-lg flex items-center justify-center gap-3">
+                        <span class="text-3xl md:text-5xl">🚀</span> MULAI
+                    </button>
+                </div>
+
+                <!-- Developer Credits Card -->
+                <div class="bg-white/90 backdrop-blur border-2 border-sky-200 rounded-2xl md:rounded-3xl p-4 md:p-8 w-full max-w-md md:max-w-lg text-center shadow-sm relative mt-16 md:mt-24">
+                    <!-- Foto Profil Pengembang -->
+                    <div class="absolute -top-14 md:-top-20 left-1/2 transform -translate-x-1/2 z-20">
+                        <img src="asset/profil.png" alt="Samsiar, S. Pd." class="w-24 h-24 md:w-40 md:h-40 rounded-full border-[4px] md:border-[6px] border-white shadow-lg object-cover object-center bg-sky-100">
+                    </div>
+                    
+                    <p class="text-xs md:text-sm text-slate-400 font-bold uppercase tracking-wider mb-1 mt-10 md:mt-16">Dikembangkan Oleh</p>
+                    <p class="text-lg md:text-2xl font-bold text-sky-700 leading-none">Samsiar, S. Pd.</p>
+                    <div class="h-px bg-slate-200 w-1/2 mx-auto my-2 md:my-4"></div>
+                    <p class="text-sm md:text-lg text-slate-600 font-semibold">SKH NEGERI 1 KUALA KAPUAS</p>
+                    <p class="text-xs md:text-base text-slate-500 mt-1 md:mt-2 bg-slate-100 inline-block px-2 md:px-4 py-0.5 md:py-1 rounded-md">Pendidikan Agama Islam</p>
+                </div>
+
+                <!-- Tombol Guru -->
+                <button onclick="showPinModal()" class="mt-8 md:mt-12 text-slate-500 hover:text-slate-700 font-bold flex items-center gap-2 bg-white/50 px-4 py-2 md:px-6 md:py-3 rounded-full shadow-sm md:text-lg">
+                    <span>👨‍🏫</span> Dashboard Guru
+                </button>
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- SCREEN: LOGIN (INPUT NAMA)                     -->
+        <!-- ============================================== -->
+        <div id="screen-login" class="screen bg-sky-50/80">
+            <div class="flex-1 flex flex-col items-center justify-center p-6 z-10 w-full">
+                <div class="bg-white p-8 rounded-[2rem] shadow-xl border-[6px] border-sky-200 w-full max-w-md text-center relative">
+                    <button onclick="navTo('screen-welcome')" class="absolute -top-4 -left-4 bg-red-400 text-white w-10 h-10 rounded-full font-bold border-[3px] border-red-600 shadow-md">X</button>
+                    <h2 class="text-2xl brand-font text-sky-600 mb-2">Siapa Namamu?</h2>
+                    <p class="text-slate-500 font-semibold text-sm mb-6">Tulis namamu sebelum mulai belajar</p>
+                    
+                    <input type="text" id="input-nama" placeholder="Ketik namamu..." class="w-full text-center text-xl font-bold text-slate-700 bg-slate-50 border-4 border-slate-200 rounded-xl py-3 px-4 mb-6 focus:outline-none focus:border-sky-400 focus:bg-white transition-colors">
+                    
+                    <button onclick="submitName()" class="btn-pressable w-full brand-font text-xl bg-sky-400 hover:bg-sky-300 text-white py-3 rounded-xl border-b-[5px] border-sky-600 shadow-md">
+                        LANJUT ▶
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- SCREEN: DASHBOARD GURU                         -->
+        <!-- ============================================== -->
+        <div id="screen-dashboard" class="screen bg-slate-100/40 backdrop-blur-md">
+            <div class="w-full h-full flex flex-col p-4 pt-16 sm:pt-4">
+                <div class="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border-2 border-slate-200 mb-4">
+                    <h2 class="text-xl brand-font text-sky-600">Dashboard Guru</h2>
+                    <button onclick="navTo('screen-welcome')" class="btn-pressable bg-red-400 text-white px-4 py-2 rounded-xl font-bold border-b-4 border-red-600 text-sm">
+                        Tutup
+                    </button>
+                </div>
+                
+                <div class="bg-blue-50 text-blue-800 text-xs p-3 rounded-xl border border-blue-200 mb-4 flex items-start gap-2 text-left">
+                    <span class="text-base">ℹ️</span>
+                    <p><strong>Info:</strong> Data nilai murid disimpan sementara saat ini. Data akan terhapus jika aplikasi ditutup atau di-refresh.</p>
+                </div>
+                
+                <div class="flex-1 bg-white rounded-2xl shadow-sm border-2 border-slate-200 overflow-hidden flex flex-col">
+                    <div class="bg-slate-100 p-3 border-b-2 border-slate-200 flex justify-between items-center">
+                        <span class="font-bold text-slate-600 text-sm">Rekap Nilai Kuis</span>
+                        <span class="text-xs bg-sky-100 text-sky-700 px-2 py-1 rounded-md font-bold" id="total-murid">0 Murid</span>
+                    </div>
+                    <div class="flex-1 overflow-y-auto p-0">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-slate-50 sticky top-0 shadow-sm">
+                                <tr>
+                                    <th class="p-3 border-b border-slate-200 text-sm text-slate-500">Nama Murid</th>
+                                    <th class="p-3 border-b border-slate-200 text-sm text-slate-500 text-center">Skor</th>
+                                    <th class="p-3 border-b border-slate-200 text-sm text-slate-500 text-right">Waktu</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabel-rekap">
+                                <!-- Data diisi JS -->
+                            </tbody>
+                        </table>
+                        <div id="tabel-kosong" class="text-center p-8 text-slate-400 font-semibold text-sm">
+                            Belum ada murid yang menyelesaikan kuis.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL PIN GURU -->
+        <div id="modal-pin" class="hidden absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6">
+            <div class="bg-white p-6 rounded-3xl shadow-2xl border-4 border-sky-200 w-full max-w-[280px] text-center transform scale-100 transition-all">
+                <h3 class="text-xl brand-font text-slate-700 mb-1">Akses Guru</h3>
+                <p class="text-xs text-slate-500 font-bold mb-4">Masukkan PIN untuk membuka</p>
+                
+                <input type="password" id="input-pin" placeholder="••••••" maxlength="6" class="w-full text-center tracking-widest text-2xl font-bold text-slate-700 bg-slate-50 border-4 border-slate-200 rounded-xl py-2 px-4 mb-4 focus:outline-none focus:border-sky-400 focus:bg-white transition-colors">
+                
+                <div class="flex gap-2">
+                    <button onclick="hidePinModal()" class="btn-pressable flex-1 bg-slate-200 hover:bg-slate-100 text-slate-600 py-2 rounded-xl font-bold border-b-[4px] border-slate-300">
+                        Batal
+                    </button>
+                    <button onclick="verifyPin()" class="btn-pressable flex-1 bg-sky-400 hover:bg-sky-300 text-white py-2 rounded-xl font-bold border-b-[4px] border-sky-600">
+                        Buka
+                    </button>
+                </div>
+                <p id="pin-error" class="text-red-500 text-xs font-bold mt-3 hidden">PIN Salah!</p>
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- SCREEN: MENU PILIH MODE                        -->
+        <!-- ============================================== -->
+        <div id="screen-menu" class="screen bg-white/20">
+            <!-- Decorative Elements -->
+            <div class="absolute top-10 left-10 md:left-24 w-12 h-12 md:w-24 md:h-24 bg-yellow-300 rounded-full animate-float opacity-80"></div>
+            <div class="absolute top-20 right-16 md:right-32 w-8 h-8 md:w-20 md:h-20 bg-pink-400 rounded-full animate-float-delayed opacity-80"></div>
+            <div class="absolute bottom-40 left-10 md:left-20 w-16 h-16 md:w-32 md:h-32 bg-blue-400 rounded-full animate-float opacity-60"></div>
+
+            <div class="flex-1 flex flex-col items-center justify-center p-6 z-10 mt-6">
+                
+                <!-- Title Header User -->
+                <div class="text-center mb-10 md:mb-20">
+                    <div class="bg-white/90 backdrop-blur px-8 md:px-16 py-4 md:py-8 rounded-3xl md:rounded-[3rem] border-4 md:border-[6px] border-sky-200 shadow-sm inline-block">
+                        <p class="text-slate-500 font-bold text-sm md:text-xl uppercase">Halo, teman pintar!</p>
+                        <h2 id="display-nama" class="text-3xl sm:text-4xl md:text-6xl brand-font text-sky-500 mt-1 md:mt-3">Siswa</h2>
+                    </div>
+                </div>
+                
+                <!-- Main Buttons - Diubah ke Grid 2 Kolom untuk Laptop -->
+                <div class="w-full max-w-md md:max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-8 px-4 mb-10 md:mb-16">
+                    <button onclick="navTo('screen-materi')" class="btn-pressable w-full brand-font text-2xl sm:text-3xl md:text-4xl bg-purple-400 hover:bg-purple-300 text-white py-4 sm:py-6 md:py-10 rounded-2xl md:rounded-3xl border-b-[6px] md:border-b-[10px] border-purple-600 shadow-lg flex items-center justify-center gap-3">
+                        <span class="text-3xl sm:text-4xl md:text-6xl">📚</span> MATERI
+                    </button>
+                    <button onclick="navTo('screen-belajar')" class="btn-pressable w-full brand-font text-2xl sm:text-3xl md:text-4xl bg-sky-400 hover:bg-sky-300 text-white py-4 sm:py-6 md:py-10 rounded-2xl md:rounded-3xl border-b-[6px] md:border-b-[10px] border-sky-600 shadow-lg flex items-center justify-center gap-3">
+                        <span class="text-3xl sm:text-4xl md:text-6xl">📖</span> BELAJAR
+                    </button>
+                    <button onclick="navTo('screen-kuis')" class="btn-pressable w-full brand-font text-2xl sm:text-3xl md:text-4xl bg-yellow-400 hover:bg-yellow-300 text-yellow-900 py-4 sm:py-6 md:py-10 rounded-2xl md:rounded-3xl border-b-[6px] md:border-b-[10px] border-yellow-600 shadow-lg flex items-center justify-center gap-3">
+                        <span class="text-3xl sm:text-4xl md:text-6xl">🎮</span> KUIS
+                    </button>
+                    <button onclick="navTo('screen-balon')" class="btn-pressable w-full brand-font text-2xl sm:text-3xl md:text-4xl bg-pink-400 hover:bg-pink-300 text-white py-4 sm:py-6 md:py-10 rounded-2xl md:rounded-3xl border-b-[6px] md:border-b-[10px] border-pink-600 shadow-lg flex items-center justify-center gap-3">
+                        <span class="text-3xl sm:text-4xl md:text-6xl">🎈</span> BALON
+                    </button>
+
+                    <!-- MENU BARU: VIDEO BELAJAR -->
+                    <button onclick="navTo('screen-video')" class="btn-pressable w-full md:col-span-2 brand-font text-2xl sm:text-3xl md:text-4xl bg-rose-500 hover:bg-rose-400 text-white py-4 sm:py-6 md:py-10 rounded-2xl md:rounded-3xl border-b-[6px] md:border-b-[10px] border-rose-700 shadow-lg flex items-center justify-center gap-3">
+                        <span class="text-3xl sm:text-4xl md:text-6xl">▶️</span> VIDEO BELAJAR
+                    </button>
+                    
+                    <!-- MENU BARU: PROFIL GURU -->
+                    <button onclick="navTo('screen-profil')" class="btn-pressable w-full md:col-span-2 brand-font text-2xl sm:text-3xl md:text-4xl bg-teal-400 hover:bg-teal-300 text-white py-4 sm:py-6 md:py-8 rounded-2xl md:rounded-3xl border-b-[6px] md:border-b-[10px] border-teal-600 shadow-lg flex items-center justify-center gap-3">
+                        <span class="text-3xl sm:text-4xl md:text-5xl">👩‍🏫</span> PROFIL GURU
+                    </button>
+                </div>
+
+                <button onclick="navTo('screen-welcome')" class="text-slate-500 hover:text-slate-700 font-bold flex items-center gap-2 bg-white/50 px-4 py-2 md:px-8 md:py-4 md:text-xl rounded-full shadow-sm">
+                    &larr; Ganti Nama
+                </button>
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- SCREEN: PROFIL GURU                            -->
+        <!-- ============================================== -->
+        <div id="screen-profil" class="screen bg-teal-50/30 backdrop-blur-md">
+            <div class="bg-white/50 backdrop-blur-md px-4 md:px-8 py-4 md:py-6 flex justify-between items-center shadow-sm relative z-20 border-b-4 border-teal-200">
+                <button onclick="navTo('screen-menu')" class="btn-pressable bg-slate-100 text-slate-600 px-4 py-2 md:px-6 md:py-3 md:text-lg rounded-xl font-bold border-b-4 border-slate-300 flex items-center gap-2">
+                    <span>&larr;</span> <span class="hidden sm:inline">Kembali</span>
+                </button>
+                <h2 class="text-xl sm:text-2xl md:text-4xl brand-font text-teal-600">Profil Guru</h2>
+                <div class="w-12 md:w-24"></div> 
+            </div>
+
+            <div class="flex-1 overflow-y-auto w-full flex flex-col items-center justify-start pt-32 md:pt-48 pb-12 px-4 md:px-12">
+                
+                <div class="bg-white/60 backdrop-blur-md rounded-[2rem] md:rounded-[3rem] p-6 sm:p-8 md:p-12 shadow-xl border-[6px] md:border-[10px] border-teal-200 w-full max-w-3xl text-center relative mb-10 mt-6 md:mt-0 flex flex-col items-center">
+                    
+                    <!-- Foto Profil -->
+                    <div class="absolute -top-20 md:-top-32 left-1/2 transform -translate-x-1/2 z-20 flex justify-center">
+                        <img src="asset/profil.png" alt="Samsiar, S. Pd." class="w-40 h-40 md:w-64 md:h-64 rounded-full border-[6px] md:border-[10px] border-white shadow-2xl object-cover object-center bg-teal-100">
+                    </div>
+                    
+                    <h2 class="text-3xl sm:text-4xl md:text-6xl font-bold text-teal-600 brand-font mt-20 md:mt-32 mb-2 w-full">Samsiar, S. Pd.</h2>
+                    <p class="text-lg sm:text-xl md:text-3xl font-semibold text-slate-500 mb-6 md:mb-10 w-full">Guru Pendidikan Agama Islam</p>
+                    
+                    <!-- Kotak Info Bawah -->
+                    <div class="bg-teal-50 rounded-2xl md:rounded-3xl p-6 md:p-10 border-4 border-teal-100 text-left space-y-6 md:space-y-8 w-full">
+                        <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 text-center sm:text-left">
+                            <span class="text-5xl md:text-7xl">🏫</span>
+                            <div>
+                                <p class="text-sm md:text-xl text-slate-400 font-bold uppercase mb-1">Unit Kerja</p>
+                                <p class="text-xl md:text-3xl font-bold text-slate-700">SKH Negeri 1 Kuala Kapuas</p>
+                            </div>
+                        </div>
+                        
+                        <div class="h-1 bg-teal-200 rounded-full w-full my-4"></div>
+                        
+                        <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 text-center sm:text-left">
+                            <span class="text-5xl md:text-7xl">💡</span>
+                            <div>
+                                <p class="text-sm md:text-xl text-slate-400 font-bold uppercase mb-1">Dedikasi</p>
+                                <p class="text-lg md:text-2xl font-bold text-slate-700 leading-relaxed">Menciptakan pembelajaran yang menyenangkan dan inklusif bagi peserta didik berkebutuhan khusus.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- SCREEN: SERTIFIKAT                             -->
+        <!-- ============================================== -->
+        <div id="screen-sertifikat" class="screen bg-slate-800/90 backdrop-blur-md">
+            <div class="bg-white/10 px-4 md:px-8 py-4 md:py-6 flex justify-between items-center shadow-sm relative z-10">
+                <button onclick="navTo('screen-hasil')" class="btn-pressable bg-slate-100 text-slate-600 px-4 py-2 md:px-6 md:py-3 md:text-lg rounded-xl font-bold border-b-4 border-slate-300 flex items-center gap-2">
+                    <span>&larr;</span> <span>Kembali ke Hasil</span>
+                </button>
+                <button onclick="downloadSertifikat()" class="btn-pressable bg-green-400 hover:bg-green-300 text-white px-4 py-2 md:px-8 md:py-3 md:text-xl rounded-xl font-bold border-b-4 border-green-600 flex items-center gap-2 shadow-lg">
+                    <span>📥</span> <span>Download PNG</span>
+                </button>
+            </div>
+
+            <div class="flex-1 flex flex-col items-center justify-center p-4 md:p-12 overflow-y-auto w-full">
+                <p class="text-white mb-4 font-bold md:text-xl text-center bg-slate-800/50 px-4 py-2 rounded-xl">Klik tombol <span class="text-green-400">Download PNG</span> di atas untuk menyimpan sertifikatmu!</p>
+                
+                <!-- Container Sertifikat (Aspek rasio lanskap) -->
+                <!-- Container ini akan di-capture oleh html2canvas -->
+                <div id="sertifikat-container" class="bg-white w-full max-w-[800px] aspect-[1.414/1] relative p-8 md:p-16 border-[12px] md:border-[20px] border-double border-yellow-500 shadow-2xl flex flex-col items-center justify-center text-center overflow-hidden">
+                    <!-- Background Decoration -->
+                    <div class="absolute inset-0 bg-yellow-50 opacity-40"></div>
+                    <div class="absolute top-0 left-0 w-16 md:w-32 h-16 md:h-32 border-t-8 border-l-8 border-yellow-400 m-2 md:m-4"></div>
+                    <div class="absolute top-0 right-0 w-16 md:w-32 h-16 md:h-32 border-t-8 border-r-8 border-yellow-400 m-2 md:m-4"></div>
+                    <div class="absolute bottom-0 left-0 w-16 md:w-32 h-16 md:h-32 border-b-8 border-l-8 border-yellow-400 m-2 md:m-4"></div>
+                    <div class="absolute bottom-0 right-0 w-16 md:w-32 h-16 md:h-32 border-b-8 border-r-8 border-yellow-400 m-2 md:m-4"></div>
+
+                    <!-- Content -->
+                    <div class="relative z-10 w-full flex flex-col items-center">
+                        <h1 class="text-3xl md:text-5xl font-bold text-slate-800 uppercase tracking-widest mb-1 md:mb-2" style="font-family: 'Times New Roman', serif;">Sertifikat</h1>
+                        <h2 class="text-xl md:text-3xl font-semibold text-yellow-600 tracking-wider mb-4 md:mb-10" style="font-family: 'Times New Roman', serif;">PENGHARGAAN BELAJAR</h2>
+                        
+                        <p class="text-sm md:text-lg text-slate-600 mb-2 font-bold">Diberikan dengan bangga kepada:</p>
+                        <h3 id="sertifikat-nama" class="text-3xl md:text-5xl font-bold text-sky-600 brand-font mb-4 border-b-4 border-slate-300 pb-2 w-3/4">Nama Murid</h3>
+                        
+                        <p class="text-xs md:text-xl text-slate-600 mb-6 md:mb-12 px-4 md:px-8 font-semibold">Atas keberhasilannya menyelesaikan permainan edukasi "Mengenal Huruf Hijaiyah" dengan total skor <strong id="sertifikat-skor" class="text-orange-500 text-xl md:text-3xl">100</strong>.</p>
+                        
+                        <div class="w-full flex justify-between items-end px-4 md:px-16 mt-auto">
+                            <div class="text-center">
+                                <div class="w-20 md:w-32 h-20 md:h-32 flex items-center justify-center relative">
+                                    <div class="absolute text-5xl md:text-7xl">🥇</div>
+                                </div>
+                            </div>
+                            <div class="text-center">
+                                <p class="text-[10px] md:text-base font-bold text-slate-600 mb-6 md:mb-10" id="sertifikat-tanggal">Kuala Kapuas, 2026</p>
+                                <h4 class="font-bold text-slate-800 text-xs md:text-lg uppercase border-b-2 border-slate-800 pb-1">Samsiar, S. Pd.</h4>
+                                <p class="text-[10px] md:text-sm font-bold text-slate-500 mt-1">Guru PAI SKH Negeri 1 Kuala Kapuas</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- SCREEN: MATERI TEORI (MAKHARIJUL HURUF)        -->
+        <!-- ============================================== -->
+        <div id="screen-materi" class="screen bg-purple-50/30 backdrop-blur-md">
+            <!-- Top Navigation Bar -->
+            <div class="bg-white/50 backdrop-blur-md px-4 md:px-8 py-4 md:py-6 flex justify-between items-center shadow-sm relative z-10 border-b-4 border-purple-200">
+                <button onclick="navTo('screen-menu')" class="btn-pressable bg-slate-100 text-slate-600 px-4 py-2 md:px-6 md:py-3 md:text-lg rounded-xl font-bold border-b-4 border-slate-300 flex items-center gap-2">
+                    <span>&larr;</span> <span class="hidden sm:inline">Kembali</span>
+                </button>
+                <h2 class="text-xl sm:text-2xl md:text-4xl brand-font text-purple-600">Materi Bacaan</h2>
+                <div class="w-12 md:w-24"></div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="flex-1 overflow-y-auto p-4 sm:p-6 md:p-12 scroll-smooth pb-20">
+                <div class="max-w-3xl md:max-w-6xl mx-auto space-y-6 md:space-y-12">
+                    
+                    <!-- Intro Card -->
+                    <div class="bg-white/60 backdrop-blur-md rounded-[2rem] md:rounded-[3rem] p-6 sm:p-8 md:p-16 shadow-md border-[4px] border-purple-200 relative overflow-hidden">
+                        <div class="absolute -top-6 -right-6 text-9xl md:text-[18rem] opacity-5 hijaiyah-char text-purple-900 leading-none">ا</div>
+                        <h3 class="text-2xl sm:text-3xl md:text-5xl brand-font text-purple-600 mb-4 md:mb-8 text-center">Apa itu Huruf Hijaiyah?</h3>
+                        <p class="text-slate-600 text-lg sm:text-xl md:text-3xl font-medium leading-relaxed text-center relative z-10">
+                            Huruf Hijaiyah adalah abjad dasar dalam bahasa Arab yang digunakan untuk membaca Al-Qur'an. Jumlah huruf hijaiyah ada 29 huruf, dimulai dari Alif (ا) hingga Ya (ي).
+                        </p>
+                    </div>
+
+                    <!-- Makharijul Huruf Card -->
+                    <div class="bg-white/60 backdrop-blur-md rounded-[2rem] md:rounded-[3rem] p-6 sm:p-8 md:p-12 shadow-md border-[4px] border-sky-200">
+                        <h3 class="text-2xl sm:text-3xl md:text-5xl brand-font text-sky-500 mb-2 md:mb-6 text-center">Makharijul Huruf</h3>
+                        <p class="text-sky-700 text-center font-bold mb-8 md:mb-12 md:text-2xl bg-sky-100 py-2 md:py-4 rounded-xl border-2 border-sky-200">Tempat keluarnya suara huruf saat dilafalkan</p>
+                        
+                        <!-- Grid Diperlebar Untuk Layar Laptop -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+                            <!-- 1. Rongga Mulut -->
+                            <div onclick="openMateriDetail(0)" class="border-[3px] border-pink-100 rounded-3xl p-5 md:p-8 bg-pink-50/50 shadow-sm transition-all hover:scale-[1.05] cursor-pointer flex flex-col relative group overflow-hidden">
+                                <div class="absolute inset-0 bg-pink-900/10 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center backdrop-blur-sm">
+                                    <span class="bg-pink-500 text-white font-bold px-6 py-3 rounded-full text-lg md:text-xl shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-transform">🔍 Perbesar</span>
+                                </div>
+                                <h4 class="text-xl sm:text-2xl md:text-3xl brand-font text-pink-500 mb-2 md:mb-4 relative z-0">1. Al-Jauf (Rongga Mulut)</h4>
+                                <p class="text-slate-600 font-semibold mb-4 text-sm sm:text-base md:text-xl flex-1 relative z-0">Tempat keluarnya huruf mad (bacaan panjang) seperti alif, wawu, dan ya mati.</p>
+                                <img src="asset/makhraj-rongga.png" alt="Rongga Mulut" class="w-full h-auto rounded-2xl border-4 border-pink-200 object-cover bg-white relative z-0" onerror="this.onerror=null; this.src='https://placehold.co/600x300/fdf2f8/ec4899?text=Gambar+Rongga+Mulut';">
+                            </div>
+
+                            <!-- 2. Tenggorokan -->
+                            <div onclick="openMateriDetail(1)" class="border-[3px] border-orange-100 rounded-3xl p-5 md:p-8 bg-orange-50/50 shadow-sm transition-all hover:scale-[1.05] cursor-pointer flex flex-col relative group overflow-hidden">
+                                <div class="absolute inset-0 bg-orange-900/10 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center backdrop-blur-sm">
+                                    <span class="bg-orange-500 text-white font-bold px-6 py-3 rounded-full text-lg md:text-xl shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-transform">🔍 Perbesar</span>
+                                </div>
+                                <h4 class="text-xl sm:text-2xl md:text-3xl brand-font text-orange-500 mb-2 md:mb-4 relative z-0">2. Al-Halq (Tenggorokan)</h4>
+                                <p class="text-slate-600 font-semibold mb-4 text-sm sm:text-base md:text-xl flex items-center flex-wrap gap-2 flex-1 relative z-0">
+                                    Contoh: <span class="hijaiyah-char text-3xl md:text-5xl text-orange-600 bg-white px-3 md:px-5 py-1 rounded-lg shadow-sm leading-none">ء ه ع ح غ خ</span>
+                                </p>
+                                <img src="asset/makhraj-tenggorokan.png" alt="Tenggorokan" class="w-full h-auto rounded-2xl border-4 border-orange-200 object-cover bg-white relative z-0" onerror="this.onerror=null; this.src='https://placehold.co/600x300/fff7ed/f97316?text=Gambar+Tenggorokan';">
+                            </div>
+
+                            <!-- 3. Lidah -->
+                            <div onclick="openMateriDetail(2)" class="border-[3px] border-green-100 rounded-3xl p-5 md:p-8 bg-green-50/50 shadow-sm transition-all hover:scale-[1.05] cursor-pointer flex flex-col relative group overflow-hidden lg:col-span-1 md:col-span-2">
+                                <div class="absolute inset-0 bg-green-900/10 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center backdrop-blur-sm">
+                                    <span class="bg-green-500 text-white font-bold px-6 py-3 rounded-full text-lg md:text-xl shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-transform">🔍 Perbesar</span>
+                                </div>
+                                <h4 class="text-xl sm:text-2xl md:text-3xl brand-font text-green-500 mb-2 md:mb-4 relative z-0">3. Al-Lisan (Lidah)</h4>
+                                <p class="text-slate-600 font-semibold mb-4 text-sm sm:text-base md:text-xl flex-1 relative z-0">Sebagian besar huruf. Contoh: <span class="hijaiyah-char text-2xl md:text-4xl text-green-600 leading-tight">ت ث ج د ذ ر ز س ش ص ض ط ظ ق ك ل ن ي</span></p>
+                                <img src="asset/makhraj-lidah.png" alt="Lidah" class="w-full h-auto rounded-2xl border-4 border-green-200 object-cover bg-white relative z-0" onerror="this.onerror=null; this.src='https://placehold.co/600x300/f0fdf4/22c55e?text=Gambar+Posisi+Lidah';">
+                            </div>
+
+                            <!-- 4. Dua Bibir -->
+                            <div onclick="openMateriDetail(3)" class="border-[3px] border-blue-100 rounded-3xl p-5 md:p-8 bg-blue-50/50 shadow-sm transition-all hover:scale-[1.05] cursor-pointer flex flex-col relative group overflow-hidden">
+                                <div class="absolute inset-0 bg-blue-900/10 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center backdrop-blur-sm">
+                                    <span class="bg-blue-500 text-white font-bold px-6 py-3 rounded-full text-lg md:text-xl shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-transform">🔍 Perbesar</span>
+                                </div>
+                                <h4 class="text-xl sm:text-2xl md:text-3xl brand-font text-blue-500 mb-2 md:mb-4 relative z-0">4. Asy-Syafatain (Bibir)</h4>
+                                <p class="text-slate-600 font-semibold mb-4 text-sm sm:text-base md:text-xl flex items-center gap-2 flex-1 relative z-0">
+                                    Contoh: <span class="hijaiyah-char text-3xl md:text-5xl text-blue-600 bg-white px-3 md:px-5 py-1 rounded-lg shadow-sm leading-none">ب م و ف</span>
+                                </p>
+                                <img src="asset/makhraj-bibir.png" alt="Dua Bibir" class="w-full h-auto rounded-2xl border-4 border-blue-200 object-cover bg-white relative z-0" onerror="this.onerror=null; this.src='https://placehold.co/600x300/eff6ff/3b82f6?text=Gambar+Bibir';">
+                            </div>
+
+                            <!-- 5. Rongga Hidung -->
+                            <div onclick="openMateriDetail(4)" class="border-[3px] border-yellow-100 rounded-3xl p-5 md:p-8 bg-yellow-50/50 shadow-sm transition-all hover:scale-[1.05] cursor-pointer flex flex-col relative group overflow-hidden">
+                                <div class="absolute inset-0 bg-yellow-900/10 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center backdrop-blur-sm">
+                                    <span class="bg-yellow-500 text-white font-bold px-6 py-3 rounded-full text-lg md:text-xl shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-transform">🔍 Perbesar</span>
+                                </div>
+                                <h4 class="text-xl sm:text-2xl md:text-3xl brand-font text-yellow-600 mb-2 md:mb-4 relative z-0">5. Al-Khaisyum (Hidung)</h4>
+                                <p class="text-slate-600 font-semibold mb-4 text-sm sm:text-base md:text-xl flex-1 relative z-0">Tempat keluarnya suara dengung (Ghunnah) untuk huruf Mim (م) dan Nun (ن) bertasydid.</p>
+                                <img src="asset/makhraj-hidung.png" alt="Rongga Hidung" class="w-full h-auto rounded-2xl border-4 border-yellow-200 object-cover bg-white relative z-0" onerror="this.onerror=null; this.src='https://placehold.co/600x300/fefce8/ca8a04?text=Gambar+Rongga+Hidung';">
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL MATERI (PERBESAR) -->
+        <div id="modal-materi" class="hidden absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-10 opacity-0 transition-opacity duration-300">
+            <div id="modal-materi-content" class="bg-white rounded-[2rem] sm:rounded-[3rem] p-6 sm:p-12 shadow-2xl border-[8px] md:border-[12px] border-slate-200 w-full max-w-[95%] md:max-w-5xl max-h-[95vh] overflow-y-auto transform scale-90 transition-transform duration-300 relative flex flex-col items-center text-center">
+                <button onclick="closeMateriDetail()" class="absolute top-4 right-4 sm:top-8 sm:right-8 bg-red-400 hover:bg-red-300 text-white w-12 h-12 sm:w-16 sm:h-16 rounded-full font-bold text-xl sm:text-3xl border-b-[4px] border-[3px] border-red-600 shadow-md btn-pressable z-10">X</button>
+                <h3 id="modal-materi-title" class="text-3xl sm:text-5xl md:text-6xl brand-font mb-4 sm:mb-6 mt-4 sm:mt-0">Title</h3>
+                <div id="modal-materi-desc" class="text-lg sm:text-2xl md:text-4xl text-slate-600 font-semibold mb-6 sm:mb-10 w-full flex flex-wrap justify-center items-center gap-2 sm:gap-4 leading-relaxed">Desc</div>
+                <img id="modal-materi-img" src="" alt="Detail" class="w-full max-w-4xl h-auto rounded-2xl sm:rounded-3xl border-[6px] md:border-[10px] border-slate-100 object-cover shadow-lg bg-white">
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- SCREEN: VIDEO BELAJAR DARI YOUTUBE             -->
+        <!-- ============================================== -->
+        <div id="screen-video" class="screen bg-rose-50/30 backdrop-blur-md">
+            <!-- Top Navigation Bar -->
+            <div class="bg-white/50 backdrop-blur-md px-4 md:px-8 py-4 md:py-6 flex justify-between items-center shadow-sm relative z-10 border-b-4 border-rose-200">
+                <button onclick="navTo('screen-menu')" class="btn-pressable bg-slate-100 text-slate-600 px-4 py-2 md:px-6 md:py-3 md:text-lg rounded-xl font-bold border-b-4 border-slate-300 flex items-center gap-2">
+                    <span>&larr;</span> <span class="hidden sm:inline">Kembali</span>
+                </button>
+                <h2 class="text-xl sm:text-2xl md:text-4xl brand-font text-rose-600">Video Edukasi</h2>
+                <div class="w-12 md:w-24"></div>
+            </div>
+
+            <!-- Content Area Video -->
+            <div class="flex-1 overflow-y-auto p-4 sm:p-6 md:p-12 flex flex-col items-center justify-start pt-8 md:pt-16 pb-20 w-full">
+                <div class="bg-white/60 backdrop-blur-md rounded-[2rem] md:rounded-[3rem] p-4 sm:p-6 md:p-8 shadow-xl border-[6px] md:border-[10px] border-rose-200 w-full max-w-5xl flex flex-col items-center text-center">
+                    
+                    <h3 class="text-2xl sm:text-3xl md:text-5xl font-bold text-rose-600 brand-font mb-2">Mari Menonton!</h3>
+                    <p class="text-slate-600 text-sm sm:text-lg md:text-2xl font-semibold mb-6 md:mb-10">Dengarkan dan ikuti cara membaca hurufnya ya.</p>
+                    
+                    <!-- Container YouTube (Responsif 16:9) -->
+                    <div class="relative w-full rounded-2xl md:rounded-3xl overflow-hidden border-4 md:border-8 border-slate-100 shadow-inner bg-slate-900" style="padding-top: 56.25%;">
+                        <iframe 
+                            id="youtube-video"
+                            class="absolute top-0 left-0 w-full h-full"
+                            src="https://www.youtube.com/embed/12GqPhVLDAM?rel=0" 
+                            title="Belajar Huruf Hijaiyah" 
+                            frameborder="0" 
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                            allowfullscreen>
+                        </iframe>
+                    </div>
+
+                    <div class="mt-6 md:mt-10 bg-rose-100 text-rose-800 text-xs md:text-lg px-4 md:px-8 py-3 rounded-xl border border-rose-200 flex items-center gap-3">
+                        <span class="text-xl md:text-3xl">💡</span>
+                        <p class="text-left font-medium">Tips: Putar perangkat (HP) secara mendatar / Landscape agar video terlihat jauh lebih besar!</p>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- SCREEN: BELAJAR                                -->
+        <!-- ============================================== -->
+        <div id="screen-belajar" class="screen bg-sky-50/30 backdrop-blur-md">
+            
+            <!-- Top Navigation Bar -->
+            <div class="bg-white/50 backdrop-blur-md px-4 md:px-8 py-4 md:py-6 flex justify-between items-center shadow-sm relative z-10">
+                <button onclick="navTo('screen-menu')" class="btn-pressable bg-slate-100 text-slate-600 px-4 py-2 md:px-6 md:py-3 md:text-lg rounded-xl font-bold border-b-4 border-slate-300 flex items-center gap-2">
+                    <span>&larr;</span> <span class="hidden sm:inline">Kembali</span>
+                </button>
+                <h2 class="text-xl md:text-3xl brand-font text-sky-600">Materi</h2>
+                <div class="bg-sky-100 text-sky-700 px-3 py-1.5 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold text-sm md:text-xl">
+                    <span id="belajar-progress">1</span> / <span id="belajar-total">28</span>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="flex-1 flex flex-col items-center justify-center p-6 md:p-12 relative">
+                <div class="absolute inset-0 bg-polka opacity-50 -z-10"></div>
+
+                <!-- Main Flashcard -->
+                <div class="w-full aspect-square max-w-[280px] sm:max-w-[400px] md:max-w-[550px] lg:max-w-[650px] bg-white/60 backdrop-blur-md border-[6px] md:border-[10px] border-sky-200 rounded-[2rem] sm:rounded-[3rem] md:rounded-[4rem] shadow-2xl p-8 sm:p-12 md:p-20 flex flex-col items-center justify-center relative overflow-hidden group">
+                    <div class="absolute top-0 left-0 w-full h-4 sm:h-6 md:h-12 bg-sky-100/50"></div>
+                    
+                    <div id="belajar-char" class="hijaiyah-char text-[7rem] sm:text-[10rem] md:text-[16rem] lg:text-[22rem] text-sky-600 transition-all duration-300 ease-out transform scale-100 mb-2 mt-4 md:mt-10 drop-shadow-sm leading-none">ا</div>
+                    
+                    <div class="w-full border-t-2 sm:border-t-4 md:border-t-[8px] border-dashed border-slate-200 my-2 sm:my-4 md:my-10"></div>
+                    
+                    <div id="belajar-name" class="text-4xl sm:text-5xl md:text-7xl lg:text-[6rem] font-bold text-slate-700 brand-font">Alif</div>
+                    <div id="belajar-desc" class="text-sm sm:text-lg md:text-3xl font-semibold text-slate-400 bg-slate-100 px-4 md:px-8 py-2 md:py-4 rounded-full mt-3 sm:mt-4 md:mt-6">Bunyi "A"</div>
+                </div>
+
+                <!-- Navigation Controls -->
+                <div class="flex justify-center items-center gap-6 sm:gap-10 md:gap-20 mt-10 md:mt-16 w-full">
+                    <button onclick="prevChar()" class="btn-pressable bg-white text-sky-500 w-14 h-14 sm:w-20 sm:h-20 md:w-32 md:h-32 rounded-full flex items-center justify-center text-2xl sm:text-4xl md:text-6xl border-[4px] md:border-[6px] border-sky-200 shadow-md">
+                        &larr;
+                    </button>
+                    
+                    <button onclick="playSound('belajar')" class="btn-pressable bg-yellow-400 text-yellow-900 w-20 h-20 sm:w-28 sm:h-28 md:w-48 md:h-48 rounded-full flex items-center justify-center text-4xl sm:text-6xl md:text-[6rem] border-b-[6px] sm:border-b-[8px] md:border-b-[16px] border-yellow-600 shadow-xl z-10 relative">
+                        <span class="transform -translate-y-1 md:-translate-y-3">🔊</span>
+                    </button>
+                    
+                    <button onclick="nextChar()" class="btn-pressable bg-white text-sky-500 w-14 h-14 sm:w-20 sm:h-20 md:w-32 md:h-32 rounded-full flex items-center justify-center text-2xl sm:text-4xl md:text-6xl border-[4px] md:border-[6px] border-sky-200 shadow-md">
+                        &rarr;
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- SCREEN: KUIS                                   -->
+        <!-- ============================================== -->
+        <div id="screen-kuis" class="screen bg-orange-50/30 backdrop-blur-md">
+            
+            <!-- Top Navigation Bar -->
+            <div class="bg-white/50 backdrop-blur-md px-4 md:px-8 py-4 md:py-6 flex justify-between items-center shadow-sm relative z-10">
+                <button onclick="navTo('screen-menu')" class="btn-pressable bg-slate-100 text-slate-600 px-3 py-2 md:px-6 md:py-3 md:text-lg rounded-xl font-bold border-b-4 border-slate-300">
+                    &larr; Keluar
+                </button>
+                
+                <!-- Progress Bar -->
+                <div class="flex-1 mx-4 md:mx-10">
+                    <div class="h-4 md:h-8 w-full bg-slate-100 rounded-full overflow-hidden border-2 border-slate-200 relative">
+                        <div id="kuis-progress-bar" class="h-full bg-orange-400 w-10 transition-all duration-300"></div>
+                    </div>
+                    <div class="text-center text-xs md:text-lg font-bold text-slate-400 mt-1 md:mt-2">Soal <span id="kuis-progress-text">1</span>/10</div>
+                </div>
+
+                <div class="bg-orange-100 text-orange-600 px-3 py-1.5 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold md:text-xl border-2 border-orange-200 flex items-center gap-2">
+                    ⭐ <span id="kuis-skor">0</span>
+                </div>
+            </div>
+
+            <div class="flex-1 flex flex-col items-center justify-start p-6 sm:p-10 md:p-16 relative">
+                <div class="absolute top-0 right-0 w-32 h-32 sm:w-64 sm:h-64 md:w-[600px] md:h-[600px] bg-orange-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 -z-10"></div>
+                <div class="absolute bottom-0 left-0 w-32 h-32 sm:w-64 sm:h-64 md:w-[600px] md:h-[600px] bg-yellow-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 -z-10"></div>
+
+                <!-- Question Area -->
+                <div class="w-full text-center mt-4 mb-8 sm:mb-12 md:mb-20">
+                    <p class="text-lg sm:text-2xl md:text-4xl font-bold text-slate-500 mb-2 sm:mb-4 md:mb-6">Temukan huruf:</p>
+                    <div class="inline-block bg-white/60 backdrop-blur-md border-[4px] sm:border-[6px] md:border-[10px] border-orange-300 rounded-2xl sm:rounded-3xl md:rounded-[3rem] py-4 px-8 sm:py-6 sm:px-12 md:py-12 md:px-24 shadow-xl transform rotate-1">
+                        <span id="kuis-soal" class="text-4xl sm:text-6xl md:text-[6rem] lg:text-[8rem] font-bold text-orange-600 brand-font drop-shadow-sm leading-none">Alif</span>
+                    </div>
+                </div>
+
+                <!-- Options Grid -->
+                <div id="kuis-options" class="grid grid-cols-2 gap-4 sm:gap-8 md:gap-16 w-full max-w-[300px] sm:max-w-[500px] md:max-w-[750px] lg:max-w-[900px]">
+                    <!-- Options injected by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- SCREEN: GAME BALON                             -->
+        <!-- ============================================== -->
+        <div id="screen-balon" class="screen bg-cyan-50/30 backdrop-blur-md">
+            <!-- Top Navigation Bar -->
+            <div class="bg-white/50 backdrop-blur-md px-4 py-4 flex justify-between items-center shadow-sm relative z-20">
+                <button onclick="navTo('screen-menu')" class="btn-pressable bg-slate-100 text-slate-600 px-3 py-2 rounded-xl font-bold border-b-4 border-slate-300">
+                    &larr; Keluar
+                </button>
+                
+                <!-- Target Instruksi -->
+                <div class="flex-1 mx-4 text-center">
+                    <p class="text-xs sm:text-sm font-bold text-slate-500 mb-1">Pecahkan Balon:</p>
+                    <div class="inline-block bg-white px-4 py-1 rounded-xl border-2 border-pink-200 shadow-sm">
+                        <h3 id="balon-target-nama" class="text-xl sm:text-2xl brand-font text-pink-500 transition-transform duration-300">Alif</h3>
+                    </div>
+                </div>
+
+                <div class="bg-pink-100 text-pink-600 px-3 py-1.5 rounded-lg font-bold border-2 border-pink-200">
+                    ⭐ <span id="balon-skor" class="inline-block transition-transform duration-300">0</span>
+                </div>
+            </div>
+
+            <!-- Timer Bar -->
+            <div class="h-2 sm:h-3 w-full bg-slate-200 relative z-20">
+                <div id="balon-timer-bar" class="h-full bg-pink-400 transition-all duration-1000 ease-linear w-full shadow-[0_0_10px_rgba(244,114,182,0.5)]"></div>
+            </div>
+
+            <!-- Area Bermain Balon -->
+            <div id="balon-area" class="flex-1 relative w-full overflow-hidden">
+                <div class="absolute top-20 left-10 w-32 h-12 bg-white/50 rounded-full blur-sm -z-10 animate-float"></div>
+                <div class="absolute top-40 right-10 w-40 h-16 bg-white/40 rounded-full blur-sm -z-10 animate-float-delayed"></div>
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- SCREEN: HASIL KUIS                             -->
+        <!-- ============================================== -->
+        <div id="screen-hasil" class="screen bg-sky-400/40 backdrop-blur-md">
+            <div id="confetti-container" class="absolute inset-0 pointer-events-none overflow-hidden z-0"></div>
+            
+            <div class="flex-1 flex flex-col items-center justify-center p-6 z-10">
+                
+                <div class="bg-white/70 backdrop-blur-md rounded-[2rem] md:rounded-[4rem] p-8 md:p-16 w-full max-w-[320px] md:max-w-[500px] text-center shadow-2xl border-[6px] md:border-[12px] border-white relative mt-10 md:mt-20">
+                    <div class="absolute -top-16 md:-top-24 left-1/2 transform -translate-x-1/2 bg-yellow-400 w-28 h-28 md:w-48 md:h-48 rounded-full border-[6px] md:border-[10px] border-white shadow-xl flex items-center justify-center text-5xl md:text-[6rem]">
+                        🏆
+                    </div>
+
+                    <h2 class="text-3xl md:text-6xl brand-font text-sky-500 mt-10 md:mt-20 mb-1 md:mb-4">YEAY!</h2>
+                    <p class="text-slate-500 md:text-2xl font-bold mb-6 md:mb-10">Kamu telah selesai.</p>
+                    
+                    <div class="bg-slate-50 rounded-2xl md:rounded-3xl p-4 md:p-8 mb-6 md:mb-10 border-2 md:border-4 border-slate-100">
+                        <p class="text-xs md:text-lg text-slate-400 font-bold mb-1 md:mb-3 uppercase">Total Skor</p>
+                        <div class="text-6xl md:text-[7rem] brand-font text-orange-500 drop-shadow-sm leading-none" id="hasil-skor">100</div>
+                        
+                        <!-- Stars -->
+                        <div class="flex justify-center gap-1 md:gap-4 mt-3 md:mt-6" id="hasil-bintang">
+                            <!-- Stars injected by JS -->
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 md:space-y-6">
+                        <button id="btn-sertifikat" onclick="siapkanSertifikat()" class="btn-pressable w-full brand-font text-xl md:text-3xl bg-green-400 hover:bg-green-300 text-white py-3 md:py-6 rounded-xl md:rounded-2xl border-b-[5px] md:border-b-[8px] border-green-600 shadow-md">
+                            UNDUH SERTIFIKAT 🎓
+                        </button>
+                        
+                        <button id="btn-main-lagi" onclick="startKuis()" class="btn-pressable w-full brand-font text-xl md:text-3xl bg-orange-400 hover:bg-orange-300 text-white py-3 md:py-6 rounded-xl md:rounded-2xl border-b-[5px] md:border-b-[8px] border-orange-600 shadow-md">
+                            MAIN LAGI 🔄
+                        </button>
+                        <button onclick="navTo('screen-menu')" class="btn-pressable w-full brand-font text-xl md:text-3xl bg-slate-200 hover:bg-slate-100 text-slate-600 py-3 md:py-6 rounded-xl md:rounded-2xl border-b-[5px] md:border-b-[8px] border-slate-300 shadow-md">
+                            MENU UTAMA 🏠
+                        </button>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Data Huruf Hijaiyah
+        const hijaiyahData = [
+            { char: 'ا', name: 'Alif', desc: 'Bunyi "A"' },
+            { char: 'ب', name: 'Ba', desc: 'Bunyi "B"' },
+            { char: 'ت', name: 'Ta', desc: 'Bunyi "T"' },
+            { char: 'ث', name: 'Tsa', desc: 'Bunyi "Ts"' },
+            { char: 'ج', name: 'Jim', desc: 'Bunyi "J"' },
+            { char: 'ح', name: 'Ha', desc: 'Bunyi "H" (bersih)' },
+            { char: 'خ', name: 'Kha', desc: 'Bunyi "Kh"' },
+            { char: 'د', name: 'Dal', desc: 'Bunyi "D"' },
+            { char: 'ذ', name: 'Dzal', desc: 'Bunyi "Dz"' },
+            { char: 'ر', name: 'Ra', desc: 'Bunyi "R"' },
+            { char: 'ز', name: 'Zai', desc: 'Bunyi "Z"' },
+            { char: 'س', name: 'Sin', desc: 'Bunyi "S"' },
+            { char: 'ش', name: 'Syin', desc: 'Bunyi "Sy"' },
+            { char: 'ص', name: 'Shad', desc: 'Bunyi "Sh"' },
+            { char: 'ض', name: 'Dhad', desc: 'Bunyi "Dh"' },
+            { char: 'ط', name: 'Tha', desc: 'Bunyi "Th"' },
+            { char: 'ظ', name: 'Zha', desc: 'Bunyi "Zh"' },
+            { char: 'ع', name: 'Ain', desc: 'Bunyi "\'"' },
+            { char: 'غ', name: 'Ghain', desc: 'Bunyi "Gh"' },
+            { char: 'ف', name: 'Fa', desc: 'Bunyi "F"' },
+            { char: 'ق', name: 'Qaf', desc: 'Bunyi "Q"' },
+            { char: 'ك', name: 'Kaf', desc: 'Bunyi "K"' },
+            { char: 'ل', name: 'Lam', desc: 'Bunyi "L"' },
+            { char: 'م', name: 'Mim', desc: 'Bunyi "M"' },
+            { char: 'ن', name: 'Nun', desc: 'Bunyi "N"' },
+            { char: 'و', name: 'Wawu', desc: 'Bunyi "W"' },
+            { char: 'ه', name: 'Ha', desc: 'Bunyi "H"' },
+            { char: 'ي', name: 'Ya', desc: 'Bunyi "Y"' }
+        ];
+
+        // State Variables
+        let currentBelajarIndex = 0;
+        
+        let kuisQuestions = [];
+        let currentKuisIndex = 0;
+        let kuisScore = 0;
+        const totalKuisSoal = 10;
+
+        // --- STATE GAME BALON ---
+        let balonScore = 0;
+        let balonTargetChar = '';
+        let balonInterval;
+        let balonGameTimer;
+        let balonTimeLeft = 60;
+
+        // --- STATE BARU ---
+        let currentStudentName = "Siswa";
+        let rekapData = [];
+        const PIN_GURU = "011095";
+        
+        // --- STATE PELACAKAN AKTIVITAS ---
+        let aktivitasBelajarSelesai = false;
+        let materiDilihat = new Set();
+        let aktivitasMateriSelesai = false;
+
+        // --- STATE MUSIK LATAR ---
+        let isMusicPlaying = false;
+        let hasInteracted = false;
+
+        function initAudioOnFirstInteraction() {
+            if (!hasInteracted) {
+                hasInteracted = true;
+                const audio = document.getElementById('bg-music');
+                audio.volume = 0.4; // Atur volume latar (40%)
+            }
+        }
+
+        function toggleMusic(event) {
+            if(event) event.stopPropagation();
+            const audio = document.getElementById('bg-music');
+            const iconEl = document.getElementById('music-icon');
+            const textEl = document.getElementById('music-text');
+
+            if (isMusicPlaying) {
+                audio.pause();
+                isMusicPlaying = false;
+                iconEl.textContent = '🔇';
+                textEl.textContent = 'Musik: OFF';
+            } else {
+                audio.play().then(() => {
+                    isMusicPlaying = true;
+                    iconEl.textContent = '🎵';
+                    textEl.textContent = 'Musik: ON';
+                }).catch(err => {
+                    console.log("Audio play dibatasi browser:", err);
+                    alert("Silakan klik sekali lagi di layar untuk mengizinkan pemutaran musik.");
+                });
+            }
+        }
+
+        // --- DATA MODAL MATERI ---
+        const makhrajDetailData = [
+            {
+                title: "1. Al-Jauf (Rongga Mulut)",
+                titleColor: "text-pink-500",
+                borderColor: "border-pink-200",
+                desc: "Tempat keluarnya huruf mad (bacaan panjang) seperti alif, wawu, dan ya mati.",
+                img: "asset/makhraj-rongga.png",
+                fallback: "https://placehold.co/800x400/fdf2f8/ec4899?text=Gambar+Rongga+Mulut"
+            },
+            {
+                title: "2. Al-Halq (Tenggorokan)",
+                titleColor: "text-orange-500",
+                borderColor: "border-orange-200",
+                desc: `Contoh: <span class="hijaiyah-char text-5xl md:text-[5rem] text-orange-600 bg-orange-50 px-6 py-2 rounded-2xl shadow-sm leading-none inline-block mt-2">ء ه ع ح غ خ</span>`,
+                img: "asset/makhraj-tenggorokan.png",
+                fallback: "https://placehold.co/800x400/fff7ed/f97316?text=Gambar+Tenggorokan"
+            },
+            {
+                title: "3. Al-Lisan (Lidah)",
+                titleColor: "text-green-500",
+                borderColor: "border-green-200",
+                desc: `Sebagian besar huruf. Contoh: <span class="hijaiyah-char text-4xl md:text-6xl text-green-600 leading-tight mt-2 block w-full">ت ث ج د ذ ر ز س ش ص ض ط ظ ق ك ل ن ي</span>`,
+                img: "asset/makhraj-lidah.png",
+                fallback: "https://placehold.co/800x400/f0fdf4/22c55e?text=Gambar+Posisi+Lidah"
+            },
+            {
+                title: "4. Asy-Syafatain (Bibir)",
+                titleColor: "text-blue-500",
+                borderColor: "border-blue-200",
+                desc: `Contoh: <span class="hijaiyah-char text-5xl md:text-[5rem] text-blue-600 bg-blue-50 px-6 py-2 rounded-2xl shadow-sm leading-none inline-block mt-2">ب م و ف</span>`,
+                img: "asset/makhraj-bibir.png",
+                fallback: "https://placehold.co/800x400/eff6ff/3b82f6?text=Gambar+Bibir"
+            },
+            {
+                title: "5. Al-Khaisyum (Hidung)",
+                titleColor: "text-yellow-600",
+                borderColor: "border-yellow-200",
+                desc: "Tempat keluarnya suara dengung (Ghunnah) untuk huruf Mim (م) dan Nun (ن) bertasydid.",
+                img: "asset/makhraj-hidung.png",
+                fallback: "https://placehold.co/800x400/fefce8/ca8a04?text=Gambar+Rongga+Hidung"
+            }
+        ];
+
+        function openMateriDetail(index) {
+            const data = makhrajDetailData[index];
+            const modal = document.getElementById('modal-materi');
+            const content = document.getElementById('modal-materi-content');
+            
+            materiDilihat.add(index);
+            
+            if (materiDilihat.size === 5 && !aktivitasMateriSelesai) {
+                aktivitasMateriSelesai = true;
+                catatAktivitasKeDashboard('Membaca Materi Makhraj');
+            }
+
+            document.getElementById('modal-materi-title').innerHTML = data.title;
+            document.getElementById('modal-materi-title').className = `text-3xl sm:text-5xl md:text-6xl brand-font mb-4 sm:mb-6 mt-4 sm:mt-0 ${data.titleColor}`;
+            document.getElementById('modal-materi-desc').innerHTML = data.desc;
+            
+            const imgEl = document.getElementById('modal-materi-img');
+            imgEl.src = data.img;
+            imgEl.onerror = () => { imgEl.src = data.fallback; };
+            imgEl.className = `w-full max-w-4xl h-auto rounded-2xl sm:rounded-3xl border-[6px] md:border-[10px] ${data.borderColor} object-cover shadow-lg bg-white`;
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-90');
+                content.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeMateriDetail() {
+            const modal = document.getElementById('modal-materi');
+            const content = document.getElementById('modal-materi-content');
+            
+            modal.classList.add('opacity-0');
+            content.classList.remove('scale-100');
+            content.classList.add('scale-90');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    alert(`Gagal memasuki mode fullscreen: ${err.message}`);
+                });
+                document.getElementById('fullscreen-icon').textContent = '🗗';
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                    document.getElementById('fullscreen-icon').textContent = '⛶';
+                }
+            }
+        }
+
+        // --- FUNGSI LOGIN & GURU ---
+        function submitName() {
+            const input = document.getElementById('input-nama').value.trim();
+            if (input === "") {
+                const inputEl = document.getElementById('input-nama');
+                inputEl.classList.add('border-red-500', 'animate-[shake_0.3s_ease-in-out]');
+                setTimeout(() => inputEl.classList.remove('border-red-500', 'animate-[shake_0.3s_ease-in-out]'), 500);
+                return;
+            }
+            currentStudentName = input;
+            document.getElementById('display-nama').textContent = currentStudentName;
+            navTo('screen-menu');
+        }
+
+        function showPinModal() {
+            document.getElementById('modal-pin').classList.remove('hidden');
+            document.getElementById('input-pin').value = '';
+            document.getElementById('pin-error').classList.add('hidden');
+            document.getElementById('input-pin').focus();
+        }
+
+        function hidePinModal() {
+            document.getElementById('modal-pin').classList.add('hidden');
+        }
+
+        function verifyPin() {
+            const input = document.getElementById('input-pin').value;
+            if (input === PIN_GURU) {
+                hidePinModal();
+                renderDashboard();
+                navTo('screen-dashboard');
+            } else {
+                document.getElementById('pin-error').classList.remove('hidden');
+                document.getElementById('input-pin').classList.add('border-red-500', 'animate-[shake_0.3s_ease-in-out]');
+                setTimeout(() => {
+                    document.getElementById('input-pin').classList.remove('border-red-500', 'animate-[shake_0.3s_ease-in-out]');
+                }, 500);
+            }
+        }
+
+        function renderDashboard() {
+            const tbody = document.getElementById('tabel-rekap');
+            const emptyState = document.getElementById('tabel-kosong');
+            const totalText = document.getElementById('total-murid');
+            
+            tbody.innerHTML = '';
+            
+            if (rekapData.length === 0) {
+                emptyState.style.display = 'block';
+                totalText.textContent = '0 Murid';
+            } else {
+                emptyState.style.display = 'none';
+                totalText.textContent = rekapData.length + ' Murid';
+                
+                const sortedData = [...rekapData].reverse();
+                
+                sortedData.forEach(data => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-50 transition-colors';
+                    tr.innerHTML = `
+                        <td class="p-3 border-b border-slate-100 font-bold text-slate-700 max-w-[120px] overflow-hidden truncate">${data.name}</td>
+                        <td class="p-3 border-b border-slate-100 text-center brand-font text-orange-500 text-lg">${data.score}</td>
+                        <td class="p-3 border-b border-slate-100 text-right text-xs font-semibold text-slate-400">${data.time}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        function navTo(screenId) {
+            if (typeof balonInterval !== 'undefined') clearInterval(balonInterval);
+            if (typeof balonGameTimer !== 'undefined') clearInterval(balonGameTimer);
+            
+            const iframe = document.getElementById('youtube-video');
+            if (iframe) {
+                const currentSrc = iframe.src;
+                iframe.src = currentSrc;
+            }
+
+            document.querySelectorAll('.screen').forEach(s => {
+                s.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+
+            if (screenId === 'screen-belajar') {
+                updateBelajarView();
+            } else if (screenId === 'screen-kuis') {
+                startKuis();
+            } else if (screenId === 'screen-balon') {
+                startBalon();
+            } else if (screenId === 'screen-menu') {
+                document.getElementById('confetti-container').innerHTML = '';
+            }
+        }
+
+        // --- BELAJAR LOGIC ---
+        function updateBelajarView() {
+            const data = hijaiyahData[currentBelajarIndex];
+            const charEl = document.getElementById('belajar-char');
+            const nameEl = document.getElementById('belajar-name');
+            const descEl = document.getElementById('belajar-desc');
+            
+            if (currentBelajarIndex === hijaiyahData.length - 1 && !aktivitasBelajarSelesai) {
+                aktivitasBelajarSelesai = true;
+                catatAktivitasKeDashboard('Menyelesaikan Belajar Flashcard');
+            }
+
+            charEl.classList.remove('scale-100');
+            charEl.classList.add('scale-50', 'opacity-0');
+
+            setTimeout(() => {
+                charEl.textContent = data.char;
+                nameEl.textContent = data.name;
+                descEl.textContent = data.desc;
+                
+                document.getElementById('belajar-progress').textContent = currentBelajarIndex + 1;
+                document.getElementById('belajar-total').textContent = hijaiyahData.length;
+
+                charEl.classList.remove('scale-50', 'opacity-0');
+                charEl.classList.add('scale-100');
+            }, 150);
+        }
+
+        function nextChar() {
+            if (currentBelajarIndex < hijaiyahData.length - 1) {
+                currentBelajarIndex++;
+                updateBelajarView();
+            }
+        }
+
+        function prevChar() {
+            if (currentBelajarIndex > 0) {
+                currentBelajarIndex--;
+                updateBelajarView();
+            }
+        }
+
+        function playSound(type) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+
+            let data;
+            if (type === 'belajar') {
+                data = hijaiyahData[currentBelajarIndex];
+                
+                const btn = document.querySelector('button[onclick="playSound(\'belajar\')"]');
+                btn.classList.add('scale-90', 'bg-yellow-300');
+                setTimeout(() => btn.classList.remove('scale-90', 'bg-yellow-300'), 150);
+            }
+            
+            if (!data) return;
+
+            const fileName = data.name.toLowerCase().replace(/ /g, '') + '.mp3';
+            const audio = new Audio('asset/suara/' + fileName);
+            
+            audio.play().catch(function(error) {
+                if ('speechSynthesis' in window) {
+                    const utterance = new SpeechSynthesisUtterance(data.name);
+                    utterance.lang = 'id-ID';
+                    utterance.rate = 0.8;
+                    utterance.pitch = 1.2;
+                    window.speechSynthesis.speak(utterance);
+                }
+            });
+        }
+
+        // --- KUIS LOGIC ---
+        function shuffleArray(array) {
+            let arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        function startKuis() {
+            kuisScore = 0;
+            currentKuisIndex = 0;
+            document.getElementById('kuis-skor').textContent = kuisScore;
+            
+            let shuffledData = shuffleArray(hijaiyahData);
+            kuisQuestions = shuffledData.slice(0, totalKuisSoal);
+            
+            loadKuisSoal();
+        }
+
+        function catatAktivitasKeDashboard(namaAktivitas) {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            
+            rekapData.push({
+                name: currentStudentName + ' (' + namaAktivitas + ')',
+                score: '-',
+                time: timeString
+            });
+            
+            if (document.getElementById('screen-dashboard').classList.contains('active')) {
+                renderDashboard();
+            }
+        }
+
+        function loadKuisSoal() {
+            if (currentKuisIndex >= totalKuisSoal) {
+                setTimeout(showHasil, 500);
+                return;
+            }
+
+            const currentSoal = kuisQuestions[currentKuisIndex];
+            
+            document.getElementById('kuis-soal').textContent = currentSoal.name;
+            document.getElementById('kuis-progress-text').textContent = currentKuisIndex + 1;
+            
+            const progressPercent = ((currentKuisIndex) / totalKuisSoal) * 100;
+            document.getElementById('kuis-progress-bar').style.width = `${progressPercent}%`;
+
+            let options = [currentSoal];
+            let wrongOptions = hijaiyahData.filter(item => item.char !== currentSoal.char);
+            wrongOptions = shuffleArray(wrongOptions).slice(0, 3);
+            options = options.concat(wrongOptions);
+            options = shuffleArray(options);
+
+            const optionsContainer = document.getElementById('kuis-options');
+            optionsContainer.innerHTML = '';
+            
+            options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'btn-pressable flex items-center justify-center bg-white/60 backdrop-blur-md aspect-square rounded-2xl sm:rounded-3xl md:rounded-[3rem] border-b-[6px] sm:border-b-[8px] md:border-b-[12px] border-[3px] sm:border-[4px] md:border-[6px] border-slate-200 hover:border-orange-200 hover:bg-orange-50/80 text-slate-700 shadow-sm transition-colors relative group';
+                
+                const span = document.createElement('span');
+                span.className = 'hijaiyah-char text-[4.5rem] sm:text-[7rem] md:text-[10rem] lg:text-[12rem] leading-none pointer-events-none group-hover:scale-110 transition-transform';
+                span.textContent = opt.char;
+                
+                btn.appendChild(span);
+                btn.onclick = () => checkAnswer(opt.char === currentSoal.char, btn, currentSoal.char);
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        function checkAnswer(isCorrect, btnElement, correctChar) {
+            const buttons = document.getElementById('kuis-options').querySelectorAll('button');
+            buttons.forEach(b => b.disabled = true);
+
+            if (isCorrect) {
+                btnElement.className = 'flex items-center justify-center bg-green-400 aspect-square rounded-2xl sm:rounded-3xl md:rounded-[3rem] border-[3px] sm:border-[4px] md:border-[6px] border-green-500 text-white shadow-sm transform scale-105 transition-all relative';
+                btnElement.innerHTML += '<div class="absolute -top-3 -right-3 sm:-top-5 sm:-right-5 md:-top-8 md:-right-8 bg-white rounded-full p-1 sm:p-2 md:p-4 shadow-md text-2xl sm:text-4xl md:text-6xl">✅</div>';
+                
+                kuisScore += 10;
+                document.getElementById('kuis-skor').textContent = kuisScore;
+            } else {
+                btnElement.className = 'flex items-center justify-center bg-red-400 aspect-square rounded-2xl sm:rounded-3xl md:rounded-[3rem] border-[3px] sm:border-[4px] md:border-[6px] border-red-500 text-white shadow-sm animate-[shake_0.5s_ease-in-out] relative';
+                btnElement.innerHTML += '<div class="absolute -top-3 -right-3 sm:-top-5 sm:-right-5 md:-top-8 md:-right-8 bg-white rounded-full p-1 sm:p-2 md:p-4 shadow-md text-2xl sm:text-4xl md:text-6xl">❌</div>';
+                
+                buttons.forEach(b => {
+                    const span = b.querySelector('span');
+                    if (span && span.textContent === correctChar) {
+                        b.className = 'flex items-center justify-center bg-green-200 aspect-square rounded-2xl sm:rounded-3xl md:rounded-[3rem] border-[3px] sm:border-[4px] md:border-[6px] border-green-400 text-green-800 shadow-sm transition-all relative';
+                    }
+                });
+            }
+
+            setTimeout(() => {
+                currentKuisIndex++;
+                loadKuisSoal();
+            }, 1200);
+        }
+
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @keyframes shake {
+                0%, 100% { transform: translateX(0); }
+                25% { transform: translateX(-5px); }
+                50% { transform: translateX(5px); }
+                75% { transform: translateX(-5px); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // --- HASIL LOGIC ---
+        function showHasil() {
+            navTo('screen-hasil');
+            
+            const btnMainLagi = document.getElementById('btn-main-lagi');
+            btnMainLagi.onclick = startKuis;
+            btnMainLagi.className = "btn-pressable w-full brand-font text-xl bg-orange-400 hover:bg-orange-300 text-white py-3 rounded-xl border-b-[5px] border-orange-600 shadow-md";
+
+            document.getElementById('kuis-progress-bar').style.width = '100%';
+
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            rekapData.push({
+                name: currentStudentName,
+                score: kuisScore,
+                time: timeString
+            });
+
+            const scoreEl = document.getElementById('hasil-skor');
+            scoreEl.textContent = '0';
+            let currentDisplayScore = 0;
+            const scoreInterval = setInterval(() => {
+                if (currentDisplayScore < kuisScore) {
+                    currentDisplayScore += Math.ceil((kuisScore - currentDisplayScore) / 5) || 1;
+                    scoreEl.textContent = currentDisplayScore;
+                } else {
+                    clearInterval(scoreInterval);
+                    scoreEl.textContent = kuisScore;
+                    renderStars();
+                }
+            }, 50);
+        }
+
+        function renderStars() {
+            let stars = 0;
+            if (kuisScore === 100) stars = 3;
+            else if (kuisScore >= 70) stars = 2;
+            else if (kuisScore >= 40) stars = 1;
+
+            const starsContainer = document.getElementById('hasil-bintang');
+            starsContainer.innerHTML = '';
+            
+            for(let i=0; i<3; i++) {
+                const star = document.createElement('div');
+                star.className = 'text-4xl transition-all duration-500 transform scale-0';
+                
+                if (i < stars) {
+                    star.innerHTML = '⭐';
+                    star.style.filter = 'drop-shadow(0 4px 6px rgba(250, 204, 21, 0.5))';
+                } else {
+                    star.innerHTML = '⭐';
+                    star.style.filter = 'grayscale(1) opacity(0.3)';
+                }
+                
+                starsContainer.appendChild(star);
+                
+                setTimeout(() => {
+                    star.style.transform = 'scale(1.2)';
+                    setTimeout(() => star.style.transform = 'scale(1)', 200);
+                }, i * 300);
+            }
+
+            if (kuisScore >= 70) {
+                setTimeout(createConfetti, 500);
+            }
+        }
+
+        function createConfetti() {
+            const container = document.getElementById('confetti-container');
+            container.innerHTML = '';
+            const colors = ['#fde047', '#38bdf8', '#f472b6', '#4ade80', '#fb923c'];
+            
+            for (let i = 0; i < 70; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+                
+                confetti.style.left = Math.random() * 100 + 'vw';
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                
+                if (Math.random() > 0.5) {
+                    confetti.style.width = '8px';
+                    confetti.style.height = '16px';
+                }
+                
+                const duration = Math.random() * 2000 + 1500;
+                
+                confetti.animate([
+                    { transform: `translate3d(0, -10vh, 0) rotate(0deg)`, opacity: 1 },
+                    { transform: `translate3d(${Math.random()*200 - 100}px, 110vh, 0) rotate(${Math.random()*720}deg)`, opacity: 0 }
+                ], {
+                    duration: duration,
+                    easing: 'cubic-bezier(.25,.8,.25,1)',
+                    fill: 'forwards'
+                });
+                
+                container.appendChild(confetti);
+            }
+        }
+
+        // --- GAME BALON LOGIC ---
+        function startBalon() {
+            balonScore = 0;
+            balonTimeLeft = 60;
+            document.getElementById('balon-skor').textContent = balonScore;
+            document.getElementById('balon-timer-bar').style.width = '100%';
+            document.getElementById('balon-area').innerHTML = '';
+            
+            setBalonTarget();
+            
+            balonInterval = setInterval(spawnBalloon, 800); 
+            
+            balonGameTimer = setInterval(() => {
+                balonTimeLeft--;
+                document.getElementById('balon-timer-bar').style.width = `${(balonTimeLeft / 60) * 100}%`;
+                
+                if (balonTimeLeft <= 0) {
+                    endBalon();
+                }
+            }, 1000);
+        }
+
+        function setBalonTarget() {
+            const randomData = hijaiyahData[Math.floor(Math.random() * hijaiyahData.length)];
+            balonTargetChar = randomData.char;
+            document.getElementById('balon-target-nama').textContent = randomData.name;
+            
+            const targetEl = document.getElementById('balon-target-nama');
+            targetEl.style.transform = 'scale(1.3)';
+            setTimeout(() => targetEl.style.transform = 'scale(1)', 200);
+        }
+
+        function spawnBalloon() {
+            const area = document.getElementById('balon-area');
+            const balloon = document.createElement('div');
+            
+            const colors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4'];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            
+            balloon.className = 'balloon';
+            balloon.style.backgroundColor = color;
+            balloon.style.color = color;
+            
+            let charData;
+            if (Math.random() < 0.35) {
+                charData = hijaiyahData.find(h => h.char === balonTargetChar);
+            } else {
+                charData = hijaiyahData[Math.floor(Math.random() * hijaiyahData.length)];
+            }
+            
+            const span = document.createElement('span');
+            span.className = 'hijaiyah-char text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white font-bold pointer-events-none drop-shadow-md leading-none mb-2';
+            span.textContent = charData.char;
+            balloon.appendChild(span);
+            
+            const leftPos = 5 + Math.random() * 80;
+            balloon.style.left = `${leftPos}%`;
+            
+            const drift = (Math.random() - 0.5) * 150;
+            const spin = (Math.random() - 0.5) * 30;
+            balloon.style.setProperty('--drift', `${drift}px`);
+            balloon.style.setProperty('--spin', `${spin}deg`);
+            
+            const duration = 4 + Math.random() * 3; 
+            balloon.style.animation = `floatUp ${duration}s linear forwards`;
+            
+            balloon.onclick = () => {
+                if (charData.char === balonTargetChar) {
+                    const rect = balloon.getBoundingClientRect();
+                    const x = rect.left + rect.width / 2;
+                    const y = rect.top + rect.height / 2;
+                    
+                    ledakanHurufBalon(x, y, charData.char, color);
+                    
+                    balloon.style.display = 'none';
+                    setTimeout(() => balloon.remove(), 100);
+                    
+                    balonScore += 10;
+                    const skorEl = document.getElementById('balon-skor');
+                    skorEl.textContent = balonScore;
+                    
+                    skorEl.classList.add('text-green-500', 'scale-125');
+                    setTimeout(() => skorEl.classList.remove('text-green-500', 'scale-125'), 300);
+                    
+                    setBalonTarget();
+                } else {
+                    balloon.style.animationPlayState = 'paused';
+                    balloon.classList.add('animate-[shake_0.4s_ease-in-out]');
+                    
+                    balonScore = Math.max(0, balonScore - 2); 
+                    const skorEl = document.getElementById('balon-skor');
+                    skorEl.textContent = balonScore;
+                    
+                    skorEl.classList.add('text-red-500', 'scale-125');
+                    setTimeout(() => skorEl.classList.remove('text-red-500', 'scale-125'), 300);
+
+                    setTimeout(() => balloon.remove(), 400);
+                }
+            };
+            
+            balloon.onanimationend = (e) => {
+                if(e.animationName === 'floatUp') balloon.remove();
+            };
+            
+            area.appendChild(balloon);
+        }
+
+        function ledakanHurufBalon(x, y, char, color) {
+            const numParticles = 8;
+            for(let i = 0; i < numParticles; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'balloon-particle';
+                particle.textContent = char;
+                particle.style.left = x + 'px';
+                particle.style.top = y + 'px';
+                particle.style.color = color;
+                
+                const size = 30 + Math.random() * 40; 
+                particle.style.fontSize = size + 'px';
+                
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 80 + Math.random() * 150;
+                
+                const tx = Math.cos(angle) * distance + 'px';
+                const ty = Math.sin(angle) * distance + 'px';
+                const rot = (Math.random() - 0.5) * 360 + 'deg';
+                
+                particle.style.setProperty('--tx', `calc(-50% + ${tx})`);
+                particle.style.setProperty('--ty', `calc(-50% + ${ty})`);
+                particle.style.setProperty('--rot', rot);
+                
+                document.body.appendChild(particle);
+                
+                setTimeout(() => {
+                    particle.remove();
+                }, 600);
+            }
+        }
+
+        function endBalon() {
+            clearInterval(balonInterval);
+            clearInterval(balonGameTimer);
+            
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            rekapData.push({
+                name: currentStudentName + ' (Balon)',
+                score: balonScore,
+                time: timeString
+            });
+            
+            navTo('screen-hasil');
+            
+            const btnMainLagi = document.getElementById('btn-main-lagi');
+            btnMainLagi.onclick = startBalon;
+            btnMainLagi.className = "btn-pressable w-full brand-font text-xl bg-pink-400 hover:bg-pink-300 text-white py-3 rounded-xl border-b-[5px] border-pink-600 shadow-md";
+            
+            const scoreEl = document.getElementById('hasil-skor');
+            scoreEl.textContent = '0';
+            
+            let currentDisplayScore = 0;
+            const scoreInterval = setInterval(() => {
+                if (currentDisplayScore < balonScore) {
+                    currentDisplayScore += Math.ceil((balonScore - currentDisplayScore) / 5) || 1;
+                    scoreEl.textContent = currentDisplayScore;
+                } else {
+                    clearInterval(scoreInterval);
+                    scoreEl.textContent = balonScore;
+                    
+                    let stars = 0;
+                    if (balonScore >= 100) stars = 3;
+                    else if (balonScore >= 50) stars = 2;
+                    else if (balonScore > 0) stars = 1;
+
+                    const starsContainer = document.getElementById('hasil-bintang');
+                    starsContainer.innerHTML = '';
+                    
+                    for(let i=0; i<3; i++) {
+                        const star = document.createElement('div');
+                        star.className = 'text-4xl transition-all duration-500 transform scale-0';
+                        
+                        if (i < stars) {
+                            star.innerHTML = '⭐';
+                            star.style.filter = 'drop-shadow(0 4px 6px rgba(250, 204, 21, 0.5))';
+                        } else {
+                            star.innerHTML = '⭐';
+                            star.style.filter = 'grayscale(1) opacity(0.3)';
+                        }
+                        
+                        starsContainer.appendChild(star);
+                        setTimeout(() => {
+                            star.style.transform = 'scale(1.2)';
+                            setTimeout(() => star.style.transform = 'scale(1)', 200);
+                        }, i * 300);
+                    }
+
+                    if (balonScore >= 50) {
+                        setTimeout(createConfetti, 500);
+                    }
+                }
+            }, 50);
+        }
+
+        // --- SERTIFIKAT LOGIC ---
+        function siapkanSertifikat() {
+            document.getElementById('sertifikat-nama').textContent = currentStudentName;
+            document.getElementById('sertifikat-skor').textContent = document.getElementById('hasil-skor').textContent;
+            
+            const now = new Date();
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            const tanggalFormat = now.toLocaleDateString('id-ID', options);
+            document.getElementById('sertifikat-tanggal').textContent = "Kuala Kapuas, " + tanggalFormat;
+            
+            navTo('screen-sertifikat');
+        }
+
+        function downloadSertifikat() {
+            const btn = document.querySelector('button[onclick="downloadSertifikat()"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span>⏳</span> <span>Memproses...</span>';
+            btn.disabled = true;
+
+            const element = document.getElementById('sertifikat-container');
+            const scrollContainer = element.parentElement;
+            scrollContainer.scrollTop = 0;
+            window.scrollTo(0, 0);
+            
+            html2canvas(element, {
+                scale: 3,
+                useCORS: true,
+                backgroundColor: "#ffffff",
+                scrollY: 0,
+                scrollX: 0,
+                windowWidth: 1200,
+                onclone: function(clonedDoc) {
+                    const el = clonedDoc.getElementById('sertifikat-container');
+                    el.style.width = '1050px';
+                    el.style.height = '742px';
+                    el.style.maxWidth = 'none';
+                    el.classList.remove('aspect-[1.414/1]', 'w-full');
+                    el.style.boxShadow = 'none';
+                }
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `Sertifikat_Hijaiyah_${currentStudentName}.png`;
+                link.href = canvas.toDataURL('image/png', 1.0);
+                link.click();
+
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }).catch(err => {
+                console.error("Gagal membuat sertifikat: ", err);
+                alert("Maaf, terjadi kesalahan saat menyiapkan sertifikat.");
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+        }
+
+        document.getElementById('screen-welcome').classList.add('active');
+
+        let scene, camera, renderer, letters3D = [];
+        
+        function init3DBackground() {
+            const canvas = document.getElementById('bg-3d');
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 40;
+
+            const hijaiyahChars = ['ا','ب','ت','ث','ج','ح','خ','د','ذ','ر','ز','س','ش','ص','ض','ط','ظ','ع','غ','ف','ق','ك','ل','م','ن','و','ه','ي'];
+            const colors = ['#38bdf8', '#fbbf24', '#f472b6', '#4ade80', '#fb923c', '#a78bfa'];
+
+            function createTileMaterials(char, color) {
+                const ctxCanvas = document.createElement('canvas');
+                ctxCanvas.width = 128;
+                ctxCanvas.height = 128;
+                const ctx = ctxCanvas.getContext('2d');
+                
+                ctx.fillStyle = color;
+                ctx.fillRect(0, 0, 128, 128);
+                
+                ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                ctx.lineWidth = 6;
+                ctx.strokeRect(6, 6, 116, 116);
+
+                ctx.font = 'bold 70px "Traditional Arabic", "Amiri", serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(char, 64, 64);
+                
+                const texture = new THREE.CanvasTexture(ctxCanvas);
+                const faceMat = new THREE.MeshBasicMaterial({ map: texture });
+                const sideMat = new THREE.MeshBasicMaterial({ color: color }); 
+                
+                return [sideMat, sideMat, sideMat, sideMat, faceMat, faceMat];
+            }
+
+            const geometry = new THREE.BoxGeometry(5, 5, 0.8); 
+            
+            for(let i = 0; i < 40; i++) {
+                const char = hijaiyahChars[Math.floor(Math.random() * hijaiyahChars.length)];
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                
+                const materials = createTileMaterials(char, color);
+                const mesh = new THREE.Mesh(geometry, materials);
+                
+                mesh.position.x = (Math.random() - 0.5) * 80;
+                mesh.position.y = (Math.random() - 0.5) * 100 + 50;
+                mesh.position.z = (Math.random() - 0.5) * 40 - 10;
+                
+                mesh.rotation.x = Math.random() * Math.PI;
+                mesh.rotation.y = Math.random() * Math.PI;
+                
+                mesh.userData = {
+                    rotX: (Math.random() - 0.5) * 0.04,
+                    rotY: (Math.random() - 0.5) * 0.04,
+                    rotZ: (Math.random() - 0.5) * 0.04,
+                    speedY: Math.random() * 0.15 + 0.05
+                };
+                
+                letters3D.push(mesh);
+                scene.add(mesh);
+            }
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }, false);
+
+            animate3D();
+        }
+
+        function animate3D() {
+            requestAnimationFrame(animate3D);
+            
+            letters3D.forEach(mesh => {
+                mesh.rotation.x += mesh.userData.rotX;
+                mesh.rotation.y += mesh.userData.rotY;
+                mesh.rotation.z += mesh.userData.rotZ;
+                mesh.position.y -= mesh.userData.speedY;
+                
+                if (mesh.position.y < -50) {
+                    mesh.position.y = 50;
+                    mesh.position.x = (Math.random() - 0.5) * 80;
+                }
+            });
+            
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function() {
+            init3DBackground();
+        };
+    </script>
+</body>
+</html>
